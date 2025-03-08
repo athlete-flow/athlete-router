@@ -1,0 +1,24 @@
+{
+  "name": "athlete-router",
+  "version": "0.0.1",
+  "description": "File-based router for JS/TS",
+  "main": "index.js",
+  "types": "index.d.ts",
+  "scripts": {
+    "test": "jest"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/athlete-flow/athlete-router"
+  },
+  "keywords": [
+    "file-based routing",
+    "js router",
+    "ts router"
+  ],
+  "author": "Denis Redcade",
+  "license": "MIT",
+  "devDependencies": {
+    "jest": "^29.7.0"
+  }
+}
