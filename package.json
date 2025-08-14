@@ -1,7 +1,7 @@
 {
   "name": "athlete-router",
-  "version": "0.1.0",
-  "description": "File-based router for JS/TS",
+  "version": "0.1.1",
+  "description": "Lightweight, type-safe router for JavaScript and TypeScript applications with parameterized routes support",
   "main": "index.js",
   "types": "index.d.ts",
   "scripts": {
@@ -9,14 +9,28 @@
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/athlete-flow/athlete-router"
+    "url": "git+https://github.com/athlete-flow/athlete-router.git"
   },
+  "bugs": {
+    "url": "https://github.com/athlete-flow/athlete-router/issues"
+  },
+  "homepage": "https://github.com/athlete-flow/athlete-router#readme",
   "keywords": [
-    "file-based routing",
-    "js router",
-    "ts router"
+    "router",
+    "typescript",
+    "javascript",
+    "http-router",
+    "url-router",
+    "route-matching",
+    "parameterized-routes",
+    "lightweight",
+    "type-safe",
+    "api-router"
   ],
-  "author": "Denis Redcade",
+  "author": {
+    "name": "Denis Redcade",
+    "email": "nskaskyou@gmail.com"
+  },
   "license": "MIT",
   "devDependencies": {
     "jest": "^29.7.0"
