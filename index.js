@@ -1,1 +1,1 @@
-exports.AthleteRouter = require('./lib/athlete-router').AthleteRouter;
+exports.Router = require("./lib/router").Router;

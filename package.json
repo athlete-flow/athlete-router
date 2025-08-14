@@ -1,6 +1,6 @@
 {
   "name": "athlete-router",
-  "version": "0.0.1",
+  "version": "0.1.0",
   "description": "File-based router for JS/TS",
   "main": "index.js",
   "types": "index.d.ts",
