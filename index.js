@@ -1,1 +1,11 @@
-exports.Router = require("./lib/router").Router;
+const {
+  Router,
+  createHttpRouter,
+  createWsRouter,
+} = require("./lib/router");
+
+module.exports = {
+  Router,
+  createHttpRouter,
+  createWsRouter,
+};

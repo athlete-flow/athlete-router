@@ -1,9 +1,16 @@
 {
   "name": "athlete-router",
-  "version": "0.1.1",
+  "version": "0.2.0",
   "description": "Lightweight, type-safe router for JavaScript and TypeScript applications with parameterized routes support",
   "main": "index.js",
   "types": "index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./index.d.ts",
+      "require": "./index.js",
+      "import": "./index.js"
+    }
+  },
   "scripts": {
     "test": "jest"
   },
