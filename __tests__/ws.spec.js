@@ -89,12 +89,14 @@ describe("route specificity", () => {
     );
 
     const matched = router.resolve("chat:message", "message");
-    expect(matched.getHandler("message")).toBe(exactHandler);
+    matched.getHandler()();
+    expect(exactHandler).toHaveBeenCalled();
+    expect(wildcardHandler).not.toHaveBeenCalled();
   });
 
   test("should handle multiple exact segments", () => {
-    const wildcardHandler = jest.fn();
-    const exactHandler = jest.fn();
+    const wildcardHandler = jest.fn(() => "wildcard");
+    const exactHandler = jest.fn(() => "exact");
 
     class WildcardRoute {
       pattern = "chat:*";
@@ -112,7 +114,7 @@ describe("route specificity", () => {
     );
 
     const matched = router.resolve("chat:room:message", "message");
-    expect(matched.getHandler("message")).toBe(exactHandler);
+    expect(matched.getHandler()()).toBe("exact");
   });
 
   test("should calculate specificity correctly", () => {
@@ -149,7 +151,10 @@ describe("route specificity", () => {
     );
 
     const matched = router.resolve("chat:room:message", "message");
-    expect(matched.getHandler("message")).toBe(handler4);
+    const h = matched.getHandler();
+    h();
+    expect(handler4).toHaveBeenCalledTimes(1);
+    expect(handler3).not.toHaveBeenCalled();
   });
 });
 
@@ -166,12 +171,13 @@ describe("createWsRouter", () => {
 
     const matched = router.resolve("chat:message", "message");
     expect(matched).not.toBeNull();
-    expect(matched.getHandler("message")).toBe(handler);
+    matched.getHandler()();
+    expect(handler).toHaveBeenCalledTimes(1);
   });
 
   test("should handle multiple routes", () => {
-    const chatHandler = jest.fn();
-    const userHandler = jest.fn();
+    const chatHandler = jest.fn(() => "chat");
+    const userHandler = jest.fn(() => "user");
 
     class ChatRoute {
       pattern = "chat:message";
@@ -188,8 +194,8 @@ describe("createWsRouter", () => {
       new UserRoute()
     );
 
-    expect(router.resolve("chat:message", "message").getHandler("message")).toBe(chatHandler);
-    expect(router.resolve("user:online", "message").getHandler("message")).toBe(userHandler);
+    expect(router.resolve("chat:message", "message").getHandler()()).toBe("chat");
+    expect(router.resolve("user:online", "message").getHandler()()).toBe("user");
   });
 
   test("should handle wildcard patterns", () => {
@@ -226,16 +232,18 @@ describe("createWsRouter", () => {
 
     const chatMatch = router.resolve("chat", "message");
     expect(chatMatch).not.toBeNull();
-    expect(chatMatch.getHandler("message")).toBe(chatHandler);
+    chatMatch.getHandler()();
+    expect(chatHandler).toHaveBeenCalledTimes(1);
 
     const messageMatch = router.resolve("chat:message", "message");
     expect(messageMatch).not.toBeNull();
-    expect(messageMatch.getHandler("message")).toBe(messageHandler);
+    messageMatch.getHandler()();
+    expect(messageHandler).toHaveBeenCalledTimes(1);
   });
 
   test("should select most specific route when multiple match", () => {
-    const wildcardHandler = jest.fn();
-    const exactHandler = jest.fn();
+    const wildcardHandler = jest.fn(() => "wildcard");
+    const exactHandler = jest.fn(() => "exact");
 
     class WildcardRoute {
       pattern = "chat:*";
@@ -253,13 +261,13 @@ describe("createWsRouter", () => {
     );
 
     const matched = router.resolve("chat:message", "message");
-    expect(matched.getHandler("message")).toBe(exactHandler);
+    expect(matched.getHandler()()).toBe("exact");
   });
 
   test("should support all WS methods", () => {
     const handlers = {};
     wsMethods.forEach(method => {
-      handlers[method] = jest.fn();
+      handlers[method] = jest.fn(() => `${method} called`);
     });
 
     class EventRoute {
@@ -274,7 +282,7 @@ describe("createWsRouter", () => {
     wsMethods.forEach(method => {
       const matched = router.resolve("event", method);
       expect(matched).not.toBeNull();
-      expect(matched.getHandler(method)).toBe(handlers[method]);
+      expect(matched.getHandler()()).toBe(`${method} called`);
     });
   });
 
@@ -327,8 +335,11 @@ describe("createWsRouter", () => {
 
     const router = createWsRouter(new ConnectionRoute());
 
-    expect(router.resolve("connection", "connect").getHandler("connect")).toBe(connectHandler);
-    expect(router.resolve("connection", "disconnect").getHandler("disconnect")).toBe(disconnectHandler);
+    router.resolve("connection", "connect").getHandler()();
+    expect(connectHandler).toHaveBeenCalled();
+
+    router.resolve("connection", "disconnect").getHandler()();
+    expect(disconnectHandler).toHaveBeenCalled();
   });
 });
 

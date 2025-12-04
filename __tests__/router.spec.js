@@ -64,23 +64,26 @@ describe("MatchedRoute", () => {
   const matchResult = "/users/123".match(/^\/users\/(?<id>[^/\s]+)$/);
 
   test("getHandler() should return handler for method", () => {
-    const matched = new MatchedRoute(route, matchResult);
-    expect(matched.getHandler("get")).toBe(route.get);
-    expect(matched.getHandler("post")).toBe(route.post);
+    const matchedGet = new MatchedRoute(route, matchResult, "get");
+    matchedGet.getHandler()();
+    expect(route.get).toHaveBeenCalled();
+    const matchedPost = new MatchedRoute(route, matchResult, "post");
+    matchedPost.getHandler()();
+    expect(route.post).toHaveBeenCalled();
   });
 
   test("getHandler() should return null for missing method", () => {
-    const matched = new MatchedRoute(route, matchResult);
-    expect(matched.getHandler("delete")).toBeNull();
+    const matched = new MatchedRoute(route, matchResult, "delete");
+    expect(matched.getHandler()).toBeNull();
   });
 
   test("getParams() should return captured groups", () => {
-    const matched = new MatchedRoute(route, matchResult);
+    const matched = new MatchedRoute(route, matchResult, "get");
     expect(matched.getParams()).toEqual({ id: "123" });
   });
 
   test("getRoute() should return original route", () => {
-    const matched = new MatchedRoute(route, matchResult);
+    const matched = new MatchedRoute(route, matchResult, "get");
     expect(matched.getRoute()).toBe(route);
   });
 });
@@ -105,7 +108,8 @@ describe("Router", () => {
 
     const matched = router.resolve("test", "get");
     expect(matched).not.toBeNull();
-    expect(matched.getHandler("get")).toBe(handler);
+    matched.getHandler()();
+    expect(handler).toHaveBeenCalledTimes(1);
   });
 
   test("should return null for non-matching route", () => {
@@ -133,8 +137,8 @@ describe("Router", () => {
   });
 
   test("should handle nested routes", () => {
-    const parentHandler = jest.fn();
-    const childHandler = jest.fn();
+    const parentHandler = jest.fn(() => "parent");
+    const childHandler = jest.fn(() => "child");
 
     const compileNested = (pattern, builder) => {
       builder.exact(pattern);
@@ -156,11 +160,11 @@ describe("Router", () => {
 
     const parentMatch = router.resolve("api", "get");
     expect(parentMatch).not.toBeNull();
-    expect(parentMatch.getHandler("get")).toBe(parentHandler);
+    expect(parentMatch.getHandler()()).toBe("parent");
 
     const childMatch = router.resolve("apiusers", "get");
     expect(childMatch).not.toBeNull();
-    expect(childMatch.getHandler("get")).toBe(childHandler);
+    expect(childMatch.getHandler()()).toBe("child");
   });
 
   test("should not add routes without handlers", () => {
@@ -180,12 +184,14 @@ describe("Router", () => {
 
     expect(router.resolve("api", "get")).toBeNull();
     expect(router.resolve("apiusers", "get")).not.toBeNull();
-    expect(router.resolve("apiusers", "get").getHandler("get")).toBe(childHandler);
+    const h = router.resolve("apiusers", "get").getHandler();
+    h();
+    expect(childHandler).toHaveBeenCalled();
   });
 
   test("should use selectRoute strategy", () => {
-    const handler1 = jest.fn();
-    const handler2 = jest.fn();
+    const handler1 = jest.fn(() => "first");
+    const handler2 = jest.fn(() => "second");
 
     const selectLast = (matched) => matched[matched.length - 1];
 
@@ -202,11 +208,11 @@ describe("Router", () => {
 
     const matched = router.resolve("first", "get");
     expect(matched).not.toBeNull();
-    expect(matched.getHandler("get")).toBe(handler1);
+    expect(matched.getHandler()()).toBe("first");
 
     const matched2 = router.resolve("second", "get");
     expect(matched2).not.toBeNull();
-    expect(matched2.getHandler("get")).toBe(handler2);
+    expect(matched2.getHandler()()).toBe("second");
   });
 
   test("should throw error for duplicate routes", () => {

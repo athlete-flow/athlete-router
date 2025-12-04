@@ -19,11 +19,10 @@ export type IRoute<P, M extends string, H> = {
  */
 export interface IMatchedRoute<P, M extends string, H> {
   /**
-   * Gets the handler function for the specified method.
-   * @param method - The HTTP or WebSocket method name
+   * Gets the handler function for the matched method.
    * @returns The handler function or null if not defined
    */
-  getHandler(method: M): H | null;
+  getHandler(): H | null;
   /**
    * Extracts route parameters from the matched path.
    * @returns Object containing parameter names and their values
@@ -58,6 +57,7 @@ export type IWsRoute<H> = IRoute<string, WsMethod, H>;
  * Builder interface for constructing regex patterns from route segments.
  */
 export interface RegExpPatternBuilder {
+  /** Internal array of pattern parts used to construct the final RegExp */
   parts: string[];
   /** Adds an exact string match (escaped) */
   exact(str: string): this;

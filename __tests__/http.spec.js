@@ -102,12 +102,12 @@ describe("route specificity", () => {
 
     class ParamRoute {
       pattern = "users/:id";
-      get = paramHandler;
+      get() { return paramHandler(); }
     }
 
     class StaticRoute {
       pattern = "users/admin";
-      get = staticHandler;
+      get() { return staticHandler(); }
     }
 
     const router = createHttpRouter(
@@ -116,7 +116,8 @@ describe("route specificity", () => {
     );
 
     const matched = router.resolve("/users/admin", "get");
-    expect(matched.getHandler("get")).toBe(staticHandler);
+    const handler = matched.getHandler();
+    expect(handler()).toBe("static");
   });
 
   test("should prefer params over wildcards", () => {
@@ -125,12 +126,12 @@ describe("route specificity", () => {
 
     class WildcardRoute {
       pattern = "api/*";
-      get = wildcardHandler;
+      get() { return wildcardHandler(); }
     }
 
     class ParamRoute {
       pattern = "api/:resource";
-      get = paramHandler;
+      get() { return paramHandler(); }
     }
 
     const router = createHttpRouter(
@@ -139,7 +140,8 @@ describe("route specificity", () => {
     );
 
     const matched = router.resolve("/api/users", "get");
-    expect(matched.getHandler("get")).toBe(paramHandler);
+    const handler = matched.getHandler();
+    expect(handler()).toBe("param");
   });
 
   test("should prefer wildcards over deep wildcards", () => {
@@ -148,12 +150,12 @@ describe("route specificity", () => {
 
     class DeepWildcardRoute {
       pattern = "files/**";
-      get = deepHandler;
+      get() { return deepHandler(); }
     }
 
     class WildcardRoute {
       pattern = "files/*";
-      get = wildcardHandler;
+      get() { return wildcardHandler(); }
     }
 
     const router = createHttpRouter(
@@ -162,7 +164,8 @@ describe("route specificity", () => {
     );
 
     const matched = router.resolve("/files/doc", "get");
-    expect(matched.getHandler("get")).toBe(wildcardHandler);
+    const handler = matched.getHandler();
+    expect(handler()).toBe("wildcard");
   });
 
   test("should handle multiple static segments", () => {
@@ -171,12 +174,12 @@ describe("route specificity", () => {
 
     class ParamRoute {
       pattern = "api/:version/users";
-      get = paramHandler;
+      get() { return paramHandler(); }
     }
 
     class StaticRoute {
       pattern = "api/v1/users";
-      get = staticHandler;
+      get() { return staticHandler(); }
     }
 
     const router = createHttpRouter(
@@ -185,7 +188,8 @@ describe("route specificity", () => {
     );
 
     const matched = router.resolve("/api/v1/users", "get");
-    expect(matched.getHandler("get")).toBe(staticHandler);
+    const handler = matched.getHandler();
+    expect(handler()).toBe("static");
   });
 
   test("should calculate specificity correctly", () => {
@@ -196,22 +200,22 @@ describe("route specificity", () => {
 
     class DeepRoute {
       pattern = "a/**";
-      get = deepHandler;
+      get() { return deepHandler(); }
     }
 
     class WildcardRoute {
       pattern = "a/*";
-      get = wildcardHandler;
+      get() { return wildcardHandler(); }
     }
 
     class ParamRoute {
       pattern = "a/:id";
-      get = paramHandler;
+      get() { return paramHandler(); }
     }
 
     class StaticRoute {
       pattern = "a/b";
-      get = staticHandler;
+      get() { return staticHandler(); }
     }
 
     const router = createHttpRouter(
@@ -222,7 +226,8 @@ describe("route specificity", () => {
     );
 
     const matched = router.resolve("/a/b", "get");
-    expect(matched.getHandler("get")).toBe(staticHandler);
+    const handler = matched.getHandler();
+    expect(handler()).toBe("static");
   });
 
   test("should prefer longer routes when type is same", () => {
@@ -231,12 +236,12 @@ describe("route specificity", () => {
 
     class ShortRoute {
       pattern = "api/:version";
-      get = shortHandler;
+      get() { return shortHandler(); }
     }
 
     class LongRoute {
       pattern = "api/:version/users";
-      get = longHandler;
+      get() { return longHandler(); }
     }
 
     const router = createHttpRouter(
@@ -245,7 +250,8 @@ describe("route specificity", () => {
     );
 
     const matched = router.resolve("/api/v1/users", "get");
-    expect(matched.getHandler("get")).toBe(longHandler);
+    const handler = matched.getHandler();
+    expect(handler()).toBe("long");
   });
 });
 
@@ -255,14 +261,16 @@ describe("createHttpRouter", () => {
 
     class UsersRoute {
       pattern = "users";
-      get = handler;
+      get() { return handler(); }
     }
 
     const router = createHttpRouter(new UsersRoute());
 
     const matched = router.resolve("/users", "get");
     expect(matched).not.toBeNull();
-    expect(matched.getHandler("get")).toBe(handler);
+    const h = matched.getHandler();
+    h();
+    expect(handler).toHaveBeenCalledTimes(1);
   });
 
   test("should handle multiple routes", () => {
@@ -271,18 +279,22 @@ describe("createHttpRouter", () => {
 
     class UsersRoute {
       pattern = "users";
-      get = usersHandler;
+      get() { return usersHandler(); }
     }
 
     class PostsRoute {
       pattern = "posts";
-      get = postsHandler;
+      get() { return postsHandler(); }
     }
 
     const router = createHttpRouter(new UsersRoute(), new PostsRoute());
 
-    expect(router.resolve("/users", "get").getHandler("get")).toBe(usersHandler);
-    expect(router.resolve("/posts", "get").getHandler("get")).toBe(postsHandler);
+    const usersH = router.resolve("/users", "get").getHandler();
+    const postsH = router.resolve("/posts", "get").getHandler();
+    usersH();
+    postsH();
+    expect(usersHandler).toHaveBeenCalledTimes(1);
+    expect(postsHandler).toHaveBeenCalledTimes(1);
   });
 
   test("should extract params", () => {
@@ -290,7 +302,7 @@ describe("createHttpRouter", () => {
 
     class UsersRoute {
       pattern = "users/:id";
-      get = handler;
+      get() { handler(); }
     }
 
     const router = createHttpRouter(new UsersRoute());
@@ -300,17 +312,17 @@ describe("createHttpRouter", () => {
   });
 
   test("should handle nested routes", () => {
-    const apiHandler = jest.fn();
-    const usersHandler = jest.fn();
+    const apiHandler = jest.fn(() => "api result");
+    const usersHandler = jest.fn(() => "users result");
 
     class UsersRoute {
       pattern = "users";
-      get = usersHandler;
+      get() { return usersHandler(); }
     }
 
     class ApiRoute {
       pattern = "api";
-      get = apiHandler;
+      get() { return apiHandler(); }
       children = [new UsersRoute()];
     }
 
@@ -318,11 +330,11 @@ describe("createHttpRouter", () => {
 
     const apiMatch = router.resolve("/api", "get");
     expect(apiMatch).not.toBeNull();
-    expect(apiMatch.getHandler("get")).toBe(apiHandler);
+    expect(apiMatch.getHandler()()).toBe("api result");
 
     const usersMatch = router.resolve("/api/users", "get");
     expect(usersMatch).not.toBeNull();
-    expect(usersMatch.getHandler("get")).toBe(usersHandler);
+    expect(usersMatch.getHandler()()).toBe("users result");
   });
 
   test("should select most specific route when multiple match", () => {
@@ -332,17 +344,17 @@ describe("createHttpRouter", () => {
 
     class WildcardRoute {
       pattern = "users/*";
-      get = wildcardHandler;
+      get() { wildcardHandler(); }
     }
 
     class ParamRoute {
       pattern = "users/:id";
-      get = paramHandler;
+      get() { paramHandler(); }
     }
 
     class StaticRoute {
       pattern = "users/admin";
-      get = staticHandler;
+      get() { staticHandler(); }
     }
 
     const router = createHttpRouter(
@@ -352,24 +364,26 @@ describe("createHttpRouter", () => {
     );
 
     const matched = router.resolve("/users/admin", "get");
-    expect(matched.getHandler("get")).toBe(staticHandler);
+    matched.getHandler()();
+    expect(staticHandler).toHaveBeenCalled();
+    expect(paramHandler).not.toHaveBeenCalled();
   });
 
   test("should support all HTTP methods", () => {
     const handlers = {};
     httpMethods.forEach((method) => {
-      handlers[method] = jest.fn();
+      handlers[method] = jest.fn(() => `${method} result`);
     });
 
     class ApiRoute {
       pattern = "api";
-      get = handlers.get;
-      post = handlers.post;
-      put = handlers.put;
-      delete = handlers.delete;
-      patch = handlers.patch;
-      head = handlers.head;
-      options = handlers.options;
+      get() { return handlers.get(); }
+      post() { return handlers.post(); }
+      put() { return handlers.put(); }
+      delete() { return handlers.delete(); }
+      patch() { return handlers.patch(); }
+      head() { return handlers.head(); }
+      options() { return handlers.options(); }
     }
 
     const router = createHttpRouter(new ApiRoute());
@@ -377,7 +391,7 @@ describe("createHttpRouter", () => {
     httpMethods.forEach((method) => {
       const matched = router.resolve("/api", method);
       expect(matched).not.toBeNull();
-      expect(matched.getHandler(method)).toBe(handlers[method]);
+      expect(matched.getHandler()()).toBe(`${method} result`);
     });
   });
 
@@ -386,7 +400,7 @@ describe("createHttpRouter", () => {
 
     class WildcardRoute {
       pattern = "api/*/details";
-      get = handler;
+      get() { handler(); }
     }
 
     const router = createHttpRouter(new WildcardRoute());
@@ -401,7 +415,7 @@ describe("createHttpRouter", () => {
 
     class DeepWildcardRoute {
       pattern = "files/**";
-      get = handler;
+      get() { handler(); }
     }
 
     const router = createHttpRouter(new DeepWildcardRoute());
@@ -414,7 +428,7 @@ describe("createHttpRouter", () => {
   test("should return null for unmatched route", () => {
     class UsersRoute {
       pattern = "users";
-      get = jest.fn();
+      get() { jest.fn()(); }
     }
 
     const router = createHttpRouter(new UsersRoute());
@@ -425,7 +439,7 @@ describe("createHttpRouter", () => {
   test("should return null for unmatched method", () => {
     class UsersRoute {
       pattern = "users";
-      get = jest.fn();
+      get() { jest.fn()(); }
     }
 
     const router = createHttpRouter(new UsersRoute());

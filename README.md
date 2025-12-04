@@ -34,21 +34,21 @@ import { createHttpRouter, IHTTPRoute } from "athlete-router";
 
 class UsersRoute implements IHTTPRoute<Handler> {
   pattern = "users/:id";
-  get = (req, res) => res.json({ userId: req.params.id });
-  delete = (req, res) => res.json({ deleted: req.params.id });
+  get(req, res) { return res.json({ userId: req.params.id }); }
+  delete(req, res) { return res.json({ deleted: req.params.id }); }
 }
 
 class PostsRoute implements IHTTPRoute<Handler> {
   pattern = "posts";
-  get = (req, res) => res.json({ posts: [] });
-  post = (req, res) => res.json({ created: true });
+  get(req, res) { return res.json({ posts: [] }); }
+  post(req, res) { return res.json({ created: true }); }
 }
 
 const router = createHttpRouter(new UsersRoute(), new PostsRoute());
 
 const matched = router.resolve("/users/123", "get");
 if (matched) {
-  const handler = matched.getHandler("get");
+  const handler = matched.getHandler();
   const params = matched.getParams(); // { id: "123" }
   handler(req, res);
 }
@@ -61,12 +61,12 @@ import { createWsRouter, IWsRoute } from "athlete-router";
 
 class ChatRoute implements IWsRoute<Handler> {
   pattern = "chat:message";
-  message = (socket, data) => socket.emit("ack", data);
+  message(socket, data) { return socket.emit("ack", data); }
 }
 
 class UserRoute implements IWsRoute<Handler> {
   pattern = "user:*";
-  message = (socket, data) => console.log("User event:", data);
+  message(socket, data) { console.log("User event:", data); }
 }
 
 const router = createWsRouter(new ChatRoute(), new UserRoute());
@@ -74,7 +74,7 @@ const router = createWsRouter(new ChatRoute(), new UserRoute());
 socket.on("message", (event, data) => {
   const matched = router.resolve(event, "message");
   if (matched) {
-    const handler = matched.getHandler("message");
+    const handler = matched.getHandler();
     handler(socket, data);
   }
 });
@@ -84,15 +84,16 @@ socket.on("message", (event, data) => {
 
 ### Pattern Compilation
 
-Routes are compiled to RegExp via a `PatternBuilder` interface:
+Routes are compiled to RegExp via a `RegExpPatternBuilder` interface:
 
 ```typescript
-interface PatternBuilder {
+interface RegExpPatternBuilder {
+  parts: string[];
   exact(str: string): this;
   param(name: string, constraint?: string): this;
   wildcard(): this;
   deepWildcard(): this;
-  concat(other: PatternBuilder): this;
+  concat(other: RegExpPatternBuilder): this;
   build(): RegExp;
 }
 ```
@@ -147,19 +148,19 @@ Specificity order: `exact > param > wildcard > deep wildcard`
 ```typescript
 class ApiRoute implements IHTTPRoute<Handler> {
   pattern = "api";
-  get = () => "API root";
+  get() { return "API root"; }
   children = [new UsersListRoute()];
 }
 
 class UsersListRoute implements IHTTPRoute<Handler> {
   pattern = "users";
-  get = () => "List users";
+  get() { return "List users"; }
   children = [new UserDetailRoute()];
 }
 
 class UserDetailRoute implements IHTTPRoute<Handler> {
   pattern = ":id";
-  get = () => "Get user";
+  get() { return "Get user"; }
 }
 
 const router = createHttpRouter(new ApiRoute());
@@ -248,7 +249,7 @@ Base router class for custom implementations.
 class Router<P, M extends string, H> {
   constructor(
     methods: M[],
-    compilePattern: (pattern: P, builder: PatternBuilder) => RegExp,
+    compilePattern: (pattern: P, builder: RegExpPatternBuilder) => RegExp,
     selectRoute: (matched: MatchedRoute<P, M, H>[]) => MatchedRoute<P, M, H>,
     ...routes: IRoute<P, M, H>[]
   );
@@ -263,7 +264,7 @@ Represents a matched route with extracted parameters.
 
 ```typescript
 class MatchedRoute<P, M, H> {
-  getHandler(method: M): H | null;
+  getHandler(): H | null;
   getParams(): Record<string, string>;
   getRoute(): IRoute<P, M, H>;
 }
@@ -283,12 +284,12 @@ Prevents accidental route conflicts at construction time:
 ```typescript
 class Route1 implements IHTTPRoute<Handler> {
   pattern = "users/:id";
-  get = handler1;
+  get() { return handler1(); }
 }
 
 class Route2 implements IHTTPRoute<Handler> {
   pattern = "users/:id";
-  get = handler2;
+  get() { return handler2(); }
 }
 
 // Throws: Duplicate route detected: [get] users/:id
