@@ -1,11 +1,21 @@
 const {
   Router,
-  createHttpRouter,
-  createWsRouter,
+  WSRouter,
+  HTTPRouter,
+  RegExpPatternBuilder,
+  compileHttpPattern,
+  selectMostSpecificRoute,
+  compileWsPattern,
+  selectMostSpecificWsRoute,
 } = require("./lib/router");
 
 module.exports = {
   Router,
-  createHttpRouter,
-  createWsRouter,
+  WSRouter,
+  HTTPRouter,
+  RegExpPatternBuilder,
+  compileHttpPattern,
+  selectMostSpecificRoute,
+  compileWsPattern,
+  selectMostSpecificWsRoute,
 };
