@@ -1,57 +1,11 @@
 /**
  * Route definition with pattern and method handlers.
  * @template P - Pattern type (usually string)
- * @template M - Method type (e.g., HttpMethod or WsMethod)
- * @template H - Handler type
  */
-export type IRoute<P, M extends string, H> = {
+export type IBaseRoute<P> = {
   readonly pattern: P;
-  readonly children?: IRoute<P, M, H>[];
-} & {
-  [K in M]?: H;
+  readonly children?: IBaseRoute<P>[];
 };
-
-/**
- * Represents a successfully matched route with extracted parameters.
- * @template P - Pattern type
- * @template M - Method type
- * @template H - Handler type
- */
-export interface IMatchedRoute<P, M extends string, H> {
-  /**
-   * Gets the handler function for the matched method.
-   * @returns The handler function or null if not defined
-   */
-  getHandler(): H | null;
-  /**
-   * Extracts route parameters from the matched path.
-   * @returns Object containing parameter names and their values
-   */
-  getParams(): Record<string, string>;
-  /**
-   * Gets the original route definition.
-   * @returns The route object
-   */
-  getRoute(): IRoute<P, M, H>;
-}
-
-/** Matched HTTP route with extracted parameters */
-export type IMatchedHTTPRoute<H> = IMatchedRoute<string, HttpMethod, H>;
-
-/** Matched WebSocket route with extracted parameters */
-export type IMatchedWsRoute<H> = IMatchedRoute<string, WsMethod, H>;
-
-/** Standard HTTP methods supported by the HTTP router */
-export type HttpMethod = "get" | "post" | "put" | "delete" | "patch" | "head" | "options";
-
-/** HTTP route definition */
-export type IHTTPRoute<H> = IRoute<string, HttpMethod, H>;
-
-/** WebSocket lifecycle and message methods */
-export type WsMethod = "connect" | "disconnect" | "message";
-
-/** WebSocket route definition */
-export type IWsRoute<H> = IRoute<string, WsMethod, H>;
 
 /**
  * Builder interface for constructing regex patterns from route segments.
@@ -82,84 +36,62 @@ export type CompilePattern<P> = (pattern: P, builder: RegExpPatternBuilder) => R
 /**
  * Strategy for selecting which route to use when multiple routes match.
  * @template P - Pattern type
- * @template M - Method type
- * @template H - Handler type
  */
-export type SelectStrategy<P, M extends string, H> = (matched: IMatchedRoute<P, M, H>[]) => IMatchedRoute<P, M, H>;
+export type SelectStrategy<P> = (matched: IBaseRoute<P>[]) => IBaseRoute<P>;
 
 /** Internal representation of a compiled route */
-export type CompiledRoute<P, M extends string, H> = {
-  route: IRoute<P, M, H>;
+export type CompiledRoute<P> = {
+  route: IBaseRoute<P>;
   regex: RegExp;
 };
 
 /**
  * Core router class supporting custom protocols and selection strategies.
- * @template P - Pattern type
- * @template M - Method type (union of method names)
- * @template H - Handler type
+ * @template R - Route type extending IBaseRoute
  */
-export class Router<P, M extends string, H> {
+export class Router<R extends IBaseRoute> {
   /**
    * Creates a new router instance.
-   * @param methods - Array of supported method names
    * @param compilePattern - Function to compile patterns into RegExp
    * @param selectRoute - Strategy for selecting between multiple matches
    * @param routes - Route definitions
+   * @throws {Error} If duplicate routes are detected
    */
   constructor(
-    methods: M[],
-    compilePattern: CompilePattern<P>,
-    selectRoute: SelectStrategy<P, M, H>,
-    ...routes: IRoute<P, M, H>[]
+    compilePattern: CompilePattern<R["pattern"]>,
+    selectRoute: SelectStrategy<R["pattern"]>,
+    ...routes: R[]
   );
   /**
-   * Resolves a path and method to a matched route.
+   * Resolves a path to a matched route.
    * @param path - The path to match
-   * @param method - The method to match
-   * @returns The matched route or null if no match found
+   * @returns The matched route or undefined if no match found
    */
-  resolve(path: string, method: M): IMatchedRoute<P, M, H> | null;
-}
-
-/** HTTP router interface */
-export interface IHTTPRouter<H> {
-  resolve(path: string, method: HttpMethod): IMatchedHTTPRoute<H> | null;
-}
-
-/** WebSocket router interface */
-export interface IWsRouter<H> {
-  resolve(path: string, method: WsMethod): IMatchedWsRoute<H> | null;
+  resolve(path: string): R | undefined;
 }
 
 /**
- * Creates an HTTP router with pattern specificity selection.
- * Supports: exact segments, parameters (:id), wildcards (*), deep wildcards (**).
- * @template H - Handler type
- * @param routes - HTTP route definitions
- * @returns An HTTP router instance
- * @example
- * ```typescript
- * const router = createHttpRouter(
- *   { pattern: "users/:id", get: handler }
- * );
- * const matched = router.resolve("/users/123", "get");
- * ```
+ * HTTP router class with built-in pattern compilation and specificity selection.
+ * @template R - Route type extending IBaseRoute<string>
  */
-export function createHttpRouter<H>(...routes: IHTTPRoute<H>[]): IHTTPRouter<H>;
+export class HTTPRouter<R extends IBaseRoute<string> = IBaseRoute<string>> extends Router<R> {
+  /**
+   * Creates an HTTP router instance.
+   * @param routes - Route definitions
+   * @throws {Error} If duplicate routes are detected
+   */
+  constructor(...routes: R[]);
+}
 
 /**
- * Creates a WebSocket router for event-based patterns.
- * Supports: exact events, wildcards (*).
- * @template H - Handler type
- * @param routes - WebSocket route definitions
- * @returns A WebSocket router instance
- * @example
- * ```typescript
- * const router = createWsRouter(
- *   { pattern: "chat:*", message: handler }
- * );
- * const matched = router.resolve("chat:message", "message");
- * ```
+ * WebSocket router class with built-in event pattern compilation.
+ * @template R - Route type extending IBaseRoute<string>
  */
-export function createWsRouter<H>(...routes: IWsRoute<H>[]): IWsRouter<H>;
+export class WSRouter<R extends IBaseRoute<string> = IBaseRoute<string>> extends Router<R> {
+  /**
+   * Creates a WebSocket router instance.
+   * @param routes - Route definitions
+   * @throws {Error} If duplicate routes are detected
+   */
+  constructor(...routes: R[]);
+}

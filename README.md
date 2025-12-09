@@ -14,7 +14,7 @@ npm install athlete-router
 ## Why Athlete Router?
 
 **Zero Dependencies**
-No external packages. The entire codebase is ~230 lines, easily auditable in 5 minutes.
+No external packages. The entire codebase is ~200 lines, easily auditable in 5 minutes.
 
 **Protocol Agnostic**
 HTTP, WebSocket, Telegram bots — or build your own. Same core, different strategies.
@@ -30,54 +30,52 @@ No magic. Routes compile to RegExp patterns via a builder interface you control.
 ### HTTP Router
 
 ```typescript
-import { createHttpRouter, IHTTPRoute } from "athlete-router";
+import { HTTPRouter } from "athlete-router";
 
-class UsersRoute implements IHTTPRoute<Handler> {
+class UsersRoute {
   pattern = "users/:id";
   get(req, res) { return res.json({ userId: req.params.id }); }
   delete(req, res) { return res.json({ deleted: req.params.id }); }
 }
 
-class PostsRoute implements IHTTPRoute<Handler> {
+class PostsRoute {
   pattern = "posts";
   get(req, res) { return res.json({ posts: [] }); }
   post(req, res) { return res.json({ created: true }); }
 }
 
-const router = createHttpRouter(new UsersRoute(), new PostsRoute());
+const router = new HTTPRouter(new UsersRoute(), new PostsRoute());
 
-const matched = router.resolve("/users/123", "get");
+const matched = router.resolve("/users/123");
 if (matched) {
-  const handler = matched.getHandler();
-  const params = matched.getParams(); // { id: "123" }
-  handler(req, res);
+  console.log(matched.pattern); // "users/:id"
+  // Client extracts params from URL using pattern
+  // Client calls matched.get(req, res) or matched[method](req, res)
 }
 ```
 
 ### WebSocket Router
 
 ```typescript
-import { createWsRouter, IWsRoute } from "athlete-router";
+import { WSRouter } from "athlete-router";
 
-class ChatRoute implements IWsRoute<Handler> {
+class ChatRoute {
   pattern = "chat:message";
   message(socket, data) { return socket.emit("ack", data); }
 }
 
-class UserRoute implements IWsRoute<Handler> {
+class UserRoute {
   pattern = "user:*";
   message(socket, data) { console.log("User event:", data); }
 }
 
-const router = createWsRouter(new ChatRoute(), new UserRoute());
+const router = new WSRouter(new ChatRoute(), new UserRoute());
 
-socket.on("message", (event, data) => {
-  const matched = router.resolve(event, "message");
-  if (matched) {
-    const handler = matched.getHandler();
-    handler(socket, data);
-  }
-});
+const matched = router.resolve("chat:message");
+if (matched) {
+  console.log(matched.pattern); // "chat:message"
+  // Client calls matched.message(socket, data)
+}
 ```
 
 ## Core Concepts
@@ -115,30 +113,35 @@ WebSocket patterns support:
 When multiple routes match, the most specific wins:
 
 ```typescript
-class CatchAllRoute implements IHTTPRoute<Handler> {
+class CatchAllRoute {
   pattern = "users/**";
-  get = () => "catch-all";
+  get() { return "catch-all"; }
 }
 
-class WildcardRoute implements IHTTPRoute<Handler> {
+class WildcardRoute {
   pattern = "users/*";
-  get = () => "wildcard";
+  get() { return "wildcard"; }
 }
 
-class ParamRoute implements IHTTPRoute<Handler> {
+class ParamRoute {
   pattern = "users/:id";
-  get = () => "param";
+  get() { return "param"; }
 }
 
-class ExactRoute implements IHTTPRoute<Handler> {
+class ExactRoute {
   pattern = "users/admin";
-  get = () => "exact";
+  get() { return "exact"; }
 }
 
-const router = createHttpRouter(new CatchAllRoute(), new WildcardRoute(), new ParamRoute(), new ExactRoute());
+const router = new HTTPRouter(
+  new CatchAllRoute(),
+  new WildcardRoute(),
+  new ParamRoute(),
+  new ExactRoute()
+);
 
-router.resolve("/users/admin", "get"); // → "exact"
-router.resolve("/users/123", "get"); // → "param"
+router.resolve("/users/admin"); // → ExactRoute
+router.resolve("/users/123"); // → ParamRoute
 ```
 
 Specificity order: `exact > param > wildcard > deep wildcard`
@@ -146,28 +149,28 @@ Specificity order: `exact > param > wildcard > deep wildcard`
 ### Nested Routes
 
 ```typescript
-class ApiRoute implements IHTTPRoute<Handler> {
+class ApiRoute {
   pattern = "api";
   get() { return "API root"; }
   children = [new UsersListRoute()];
 }
 
-class UsersListRoute implements IHTTPRoute<Handler> {
+class UsersListRoute {
   pattern = "users";
   get() { return "List users"; }
   children = [new UserDetailRoute()];
 }
 
-class UserDetailRoute implements IHTTPRoute<Handler> {
+class UserDetailRoute {
   pattern = ":id";
   get() { return "Get user"; }
 }
 
-const router = createHttpRouter(new ApiRoute());
+const router = new HTTPRouter(new ApiRoute());
 
-router.resolve("/api", "get"); // → "API root"
-router.resolve("/api/users", "get"); // → "List users"
-router.resolve("/api/users/123", "get"); // → "Get user"
+router.resolve("/api"); // → ApiRoute
+router.resolve("/api/users"); // → UsersListRoute
+router.resolve("/api/users/123"); // → UserDetailRoute
 ```
 
 ## Custom Routers
@@ -176,8 +179,6 @@ Build your own router by providing compilation and selection strategies:
 
 ```typescript
 import { Router } from "athlete-router";
-
-const methods = ["MESSAGE", "COMMAND"];
 
 const compileTelegramPattern = (pattern, builder) => {
   if (pattern.startsWith("/")) {
@@ -191,110 +192,129 @@ const compileTelegramPattern = (pattern, builder) => {
 const selectFirst = (matched) => matched[0];
 
 const router = new Router(
-  methods,
   compileTelegramPattern,
   selectFirst,
-  { pattern: "/start", COMMAND: () => "Welcome!" },
-  { pattern: "/help", COMMAND: () => "Help text" }
+  { pattern: "/start", MESSAGE: () => "Welcome!" },
+  { pattern: "/help", MESSAGE: () => "Help text" }
 );
 ```
 
 ## API Reference
 
-### `createHttpRouter(...routes)`
+### `HTTPRouter`
 
-Creates an HTTP router with pattern specificity selection.
-
-**Supported HTTP methods:** `get`, `post`, `put`, `delete`, `patch`, `head`, `options`
+HTTP router class with built-in pattern compilation and specificity selection.
 
 ```typescript
-type IHTTPRoute<H> = {
-  readonly pattern: string;
-  readonly children?: IHTTPRoute<H>[];
-  get?: H;
-  post?: H;
-  put?: H;
-  delete?: H;
-  patch?: H;
-  head?: H;
-  options?: H;
-};
-
-function createHttpRouter<H>(...routes: IHTTPRoute<H>[]): IHTTPRouter<H>;
+class HTTPRouter<R extends IBaseRoute<string>> extends Router<R> {
+  constructor(...routes: R[]);
+  resolve(path: string): R | undefined;
+}
 ```
 
-### `createWsRouter(...routes)`
+### `WSRouter`
 
-Creates a WebSocket router for event-based patterns.
-
-**Supported WS methods:** `connect`, `disconnect`, `message`
+WebSocket router class with built-in event pattern compilation.
 
 ```typescript
-type IWsRoute<H> = {
-  readonly pattern: string;
-  readonly children?: IWsRoute<H>[];
-  connect?: H;
-  disconnect?: H;
-  message?: H;
-};
-
-function createWsRouter<H>(...routes: IWsRoute<H>[]): IWsRouter<H>;
+class WSRouter<R extends IBaseRoute<string>> extends Router<R> {
+  constructor(...routes: R[]);
+  resolve(path: string): R | undefined;
+}
 ```
 
-### `Router<P, M, H>`
+### `Router<R>`
 
 Base router class for custom implementations.
 
 ```typescript
-class Router<P, M extends string, H> {
+class Router<R extends IBaseRoute> {
   constructor(
-    methods: M[],
-    compilePattern: (pattern: P, builder: RegExpPatternBuilder) => RegExp,
-    selectRoute: (matched: MatchedRoute<P, M, H>[]) => MatchedRoute<P, M, H>,
-    ...routes: IRoute<P, M, H>[]
+    compilePattern: (pattern: R["pattern"], builder: RegExpPatternBuilder) => RegExp,
+    selectRoute: (matched: R[]) => R,
+    ...routes: R[]
   );
 
-  resolve(path: string, method: M): MatchedRoute<P, M, H> | null;
+  resolve(path: string): R | undefined;
 }
 ```
 
-### `MatchedRoute<P, M, H>`
+### `IBaseRoute<P>`
 
-Represents a matched route with extracted parameters.
+Route definition interface.
 
 ```typescript
-class MatchedRoute<P, M, H> {
-  getHandler(): H | null;
-  getParams(): Record<string, string>;
-  getRoute(): IRoute<P, M, H>;
+interface IBaseRoute<P> {
+  readonly pattern: P;
+  readonly children?: IBaseRoute<P>[];
 }
 ```
+
+## Duplicate Route Detection
+
+The router automatically checks for duplicate routes at construction time:
+
+```typescript
+const router = new HTTPRouter(
+  { pattern: "users/:id" },
+  { pattern: "users/:name" } // ❌ Error: Duplicate route detected
+);
+```
+
+Routes are considered duplicates if they compile to the same RegExp pattern. This prevents ambiguous routing configurations.
+
+```typescript
+// These are NOT duplicates (different patterns):
+const router = new HTTPRouter(
+  { pattern: "users/:id" },    // matches /users/123
+  { pattern: "users/admin" }   // matches /users/admin (more specific)
+);
+
+// These ARE duplicates (same compiled pattern):
+const router = new HTTPRouter(
+  { pattern: "users/:id" },
+  { pattern: "users/:userId" } // ❌ Same regex: /^\/users\/(?<id>[^/?#]+)$/
+);
+```
+
+Nested routes are also checked:
+
+```typescript
+const router = new HTTPRouter({
+  pattern: "api",
+  children: [
+    { pattern: "users" },
+    { pattern: "users" } // ❌ Error: Duplicate route detected
+  ]
+});
+```
+
+## Philosophy
+
+The router is a **pure pattern matcher**. It:
+
+1. Takes a path/event string
+2. Finds matching routes by pattern
+3. Returns the most specific matching route
+
+The router does NOT:
+
+- Parse parameters from URLs (client extracts them using the pattern)
+- Validate HTTP methods (client checks if method exists on route)
+
+This separation of concerns gives you maximum flexibility:
+
+- **Parameter extraction**: Client's responsibility using the returned pattern
+- **Method handling**: Client checks if `route[method]` exists and calls it
+- **Handler execution**: Client manages the handler logic
 
 ## Security & Auditability
 
-**~230 lines of code**
+**~200 lines of code**
 The entire router implementation is transparent and auditable.
 
 **No regex injection**
 All user patterns are escaped via `String.prototype.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")`.
-
-**Duplicate detection**
-Prevents accidental route conflicts at construction time:
-
-```typescript
-class Route1 implements IHTTPRoute<Handler> {
-  pattern = "users/:id";
-  get() { return handler1(); }
-}
-
-class Route2 implements IHTTPRoute<Handler> {
-  pattern = "users/:id";
-  get() { return handler2(); }
-}
-
-// Throws: Duplicate route detected: [get] users/:id
-createHttpRouter(new Route1(), new Route2());
-```
 
 ## Philosophy
 
@@ -319,4 +339,4 @@ MIT © Denis Ardyshev
 
 ---
 
-**Enjoy programming without the bloat!** 🚀
+**Enjoy programming without the bloat!**

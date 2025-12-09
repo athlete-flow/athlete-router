@@ -1,7 +1,6 @@
 const {
-  createWsRouter,
+  WSRouter,
   compileWsPattern,
-  wsMethods,
   RegExpPatternBuilder,
 } = require("../lib/router");
 
@@ -70,283 +69,171 @@ describe("compileWsPattern", () => {
 
 describe("route specificity", () => {
   test("should prefer exact match over wildcard", () => {
-    const wildcardHandler = jest.fn();
-    const exactHandler = jest.fn();
-
     class WildcardRoute {
       pattern = "chat:*";
-      message = wildcardHandler;
     }
 
     class ExactRoute {
       pattern = "chat:message";
-      message = exactHandler;
     }
 
-    const router = createWsRouter(
+    const router = new WSRouter(
       new WildcardRoute(),
       new ExactRoute()
     );
 
-    const matched = router.resolve("chat:message", "message");
-    matched.getHandler()();
-    expect(exactHandler).toHaveBeenCalled();
-    expect(wildcardHandler).not.toHaveBeenCalled();
+    const matched = router.resolve("chat:message");
+    expect(matched.pattern).toBe("chat:message");
   });
 
   test("should handle multiple exact segments", () => {
-    const wildcardHandler = jest.fn(() => "wildcard");
-    const exactHandler = jest.fn(() => "exact");
-
     class WildcardRoute {
       pattern = "chat:*";
-      message = wildcardHandler;
     }
 
     class ExactRoute {
       pattern = "chat:room:message";
-      message = exactHandler;
     }
 
-    const router = createWsRouter(
+    const router = new WSRouter(
       new WildcardRoute(),
       new ExactRoute()
     );
 
-    const matched = router.resolve("chat:room:message", "message");
-    expect(matched.getHandler()()).toBe("exact");
+    const matched = router.resolve("chat:room:message");
+    expect(matched.pattern).toBe("chat:room:message");
   });
 
   test("should calculate specificity correctly", () => {
-    const handler1 = jest.fn();
-    const handler2 = jest.fn();
-    const handler3 = jest.fn();
-    const handler4 = jest.fn();
-
     class Route1 {
       pattern = "*:*:*";
-      message = handler1;
     }
 
     class Route2 {
       pattern = "chat:*:*";
-      message = handler2;
     }
 
     class Route3 {
       pattern = "chat:room:*";
-      message = handler3;
     }
 
     class Route4 {
       pattern = "chat:room:message";
-      message = handler4;
     }
 
-    const router = createWsRouter(
+    const router = new WSRouter(
       new Route1(),
       new Route2(),
       new Route3(),
       new Route4()
     );
 
-    const matched = router.resolve("chat:room:message", "message");
-    const h = matched.getHandler();
-    h();
-    expect(handler4).toHaveBeenCalledTimes(1);
-    expect(handler3).not.toHaveBeenCalled();
+    const matched = router.resolve("chat:room:message");
+    expect(matched.pattern).toBe("chat:room:message");
   });
 });
 
-describe("createWsRouter", () => {
+describe("WSRouter", () => {
   test("should create router with WS methods", () => {
-    const handler = jest.fn();
-
     class ChatRoute {
       pattern = "chat:message";
-      message = handler;
     }
 
-    const router = createWsRouter(new ChatRoute());
+    const router = new WSRouter(new ChatRoute());
 
-    const matched = router.resolve("chat:message", "message");
+    const matched = router.resolve("chat:message");
     expect(matched).not.toBeNull();
-    matched.getHandler()();
-    expect(handler).toHaveBeenCalledTimes(1);
+    expect(matched.pattern).toBe("chat:message");
   });
 
   test("should handle multiple routes", () => {
-    const chatHandler = jest.fn(() => "chat");
-    const userHandler = jest.fn(() => "user");
-
     class ChatRoute {
       pattern = "chat:message";
-      message = chatHandler;
     }
 
     class UserRoute {
       pattern = "user:online";
-      message = userHandler;
     }
 
-    const router = createWsRouter(
+    const router = new WSRouter(
       new ChatRoute(),
       new UserRoute()
     );
 
-    expect(router.resolve("chat:message", "message").getHandler()()).toBe("chat");
-    expect(router.resolve("user:online", "message").getHandler()()).toBe("user");
+    expect(router.resolve("chat:message").pattern).toBe("chat:message");
+    expect(router.resolve("user:online").pattern).toBe("user:online");
   });
 
   test("should handle wildcard patterns", () => {
-    const handler = jest.fn();
-
     class WildcardRoute {
       pattern = "chat:*";
-      message = handler;
     }
 
-    const router = createWsRouter(new WildcardRoute());
+    const router = new WSRouter(new WildcardRoute());
 
-    expect(router.resolve("chat:message", "message")).not.toBeNull();
-    expect(router.resolve("chat:typing", "message")).not.toBeNull();
-    expect(router.resolve("user:online", "message")).toBeNull();
+    expect(router.resolve("chat:message")).not.toBeUndefined();
+    expect(router.resolve("chat:typing")).not.toBeUndefined();
+    expect(router.resolve("user:online")).toBeUndefined();
   });
 
   test("should handle nested routes", () => {
-    const chatHandler = jest.fn();
-    const messageHandler = jest.fn();
-
     class MessageRoute {
       pattern = ":message";
-      message = messageHandler;
     }
 
     class ChatRoute {
       pattern = "chat";
-      message = chatHandler;
       children = [new MessageRoute()];
     }
 
-    const router = createWsRouter(new ChatRoute());
+    const router = new WSRouter(new ChatRoute());
 
-    const chatMatch = router.resolve("chat", "message");
+    const chatMatch = router.resolve("chat");
     expect(chatMatch).not.toBeNull();
-    chatMatch.getHandler()();
-    expect(chatHandler).toHaveBeenCalledTimes(1);
+    expect(chatMatch.pattern).toBe("chat");
 
-    const messageMatch = router.resolve("chat:message", "message");
+    const messageMatch = router.resolve("chat:message");
     expect(messageMatch).not.toBeNull();
-    messageMatch.getHandler()();
-    expect(messageHandler).toHaveBeenCalledTimes(1);
+    expect(messageMatch.pattern).toBe(":message");
   });
 
   test("should select most specific route when multiple match", () => {
-    const wildcardHandler = jest.fn(() => "wildcard");
-    const exactHandler = jest.fn(() => "exact");
-
     class WildcardRoute {
       pattern = "chat:*";
-      message = wildcardHandler;
     }
 
     class ExactRoute {
       pattern = "chat:message";
-      message = exactHandler;
     }
 
-    const router = createWsRouter(
+    const router = new WSRouter(
       new WildcardRoute(),
       new ExactRoute()
     );
 
-    const matched = router.resolve("chat:message", "message");
-    expect(matched.getHandler()()).toBe("exact");
-  });
-
-  test("should support all WS methods", () => {
-    const handlers = {};
-    wsMethods.forEach(method => {
-      handlers[method] = jest.fn(() => `${method} called`);
-    });
-
-    class EventRoute {
-      pattern = "event";
-      connect = handlers.connect;
-      disconnect = handlers.disconnect;
-      message = handlers.message;
-    }
-
-    const router = createWsRouter(new EventRoute());
-
-    wsMethods.forEach(method => {
-      const matched = router.resolve("event", method);
-      expect(matched).not.toBeNull();
-      expect(matched.getHandler()()).toBe(`${method} called`);
-    });
+    const matched = router.resolve("chat:message");
+    expect(matched.pattern).toBe("chat:message");
   });
 
   test("should handle complex patterns", () => {
-    const handler = jest.fn();
-
     class ComplexRoute {
       pattern = "chat:room:*:message";
-      message = handler;
     }
 
-    const router = createWsRouter(new ComplexRoute());
+    const router = new WSRouter(new ComplexRoute());
 
-    expect(router.resolve("chat:room:123:message", "message")).not.toBeNull();
-    expect(router.resolve("chat:room:456:message", "message")).not.toBeNull();
-    expect(router.resolve("chat:room:message", "message")).toBeNull();
+    expect(router.resolve("chat:room:123:message")).not.toBeUndefined();
+    expect(router.resolve("chat:room:456:message")).not.toBeUndefined();
+    expect(router.resolve("chat:room:message")).toBeUndefined();
   });
 
-  test("should return null for unmatched event", () => {
+  test("should return undefined for unmatched event", () => {
     class ChatRoute {
       pattern = "chat:message";
-      message = jest.fn();
     }
 
-    const router = createWsRouter(new ChatRoute());
+    const router = new WSRouter(new ChatRoute());
 
-    expect(router.resolve("user:online", "message")).toBeNull();
-  });
-
-  test("should return null for unmatched method", () => {
-    class ChatRoute {
-      pattern = "chat:message";
-      message = jest.fn();
-    }
-
-    const router = createWsRouter(new ChatRoute());
-
-    expect(router.resolve("chat:message", "connect")).toBeNull();
-  });
-
-  test("should handle connection lifecycle", () => {
-    const connectHandler = jest.fn();
-    const disconnectHandler = jest.fn();
-
-    class ConnectionRoute {
-      pattern = "connection";
-      connect = connectHandler;
-      disconnect = disconnectHandler;
-    }
-
-    const router = createWsRouter(new ConnectionRoute());
-
-    router.resolve("connection", "connect").getHandler()();
-    expect(connectHandler).toHaveBeenCalled();
-
-    router.resolve("connection", "disconnect").getHandler()();
-    expect(disconnectHandler).toHaveBeenCalled();
-  });
-});
-
-describe("wsMethods", () => {
-  test("should contain WebSocket methods", () => {
-    expect(wsMethods).toContain("connect");
-    expect(wsMethods).toContain("disconnect");
-    expect(wsMethods).toContain("message");
+    expect(router.resolve("user:online")).toBeUndefined();
   });
 });
